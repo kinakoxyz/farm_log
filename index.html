@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,38 +8,50 @@
     <style>
         body { background: #000; color: #0f0; font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
         
+        /* タイマーセクション */
         .timer-section { width: 100%; text-align: center; background: #111; padding: 10px 0; border-bottom: 1px solid #333; }
         #clock { font-size: 2.8rem; font-weight: bold; color: #fff; line-height: 1.1; }
         #countdown { font-size: 1.3rem; color: #ff3333; margin-top: 5px; font-weight: bold; }
 
+        /* ログコンテナ */
         #log-container { 
-            width: 95%; height: 50vh; 
+            width: 95%; height: 45vh; 
             border: 2px solid #00ff00; background: #000; padding: 10px;
             margin-top: 10px; text-align: left; overflow-y: auto; white-space: pre-wrap;
             font-size: 1.4rem; line-height: 1.5; font-family: 'Courier New', monospace;
             box-sizing: border-box;
         }
 
-        /* 特別設定エリア（音声とスリープ） */
+        /* サーバー側設定の表示エリア */
+        #server-status {
+            width: 95%; margin-top: 15px; padding: 12px;
+            background: #1a1a1a; border: 1px dashed #555; border-radius: 8px;
+            box-sizing: border-box;
+        }
+        .status-label { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+        .status-content { color: #00ff00; font-weight: bold; font-size: 1rem; line-height: 1.4; }
+
+        /* メインスイッチ（音声・スリープ） */
         #core-settings {
             width: 95%; margin-top: 15px; display: flex; justify-content: space-around; gap: 10px;
         }
         .core-item { 
             flex: 1; padding: 15px; border-radius: 10px; font-weight: bold; text-align: center; font-size: 1.1rem;
-            border: 2px solid #555; cursor: pointer;
+            border: 2px solid #555; cursor: pointer; transition: 0.2s;
         }
         .active-audio { background: #aa7700; color: #fff; border-color: #ffaa00; }
         .active-nosleep { background: #005500; color: #fff; border-color: #00ff00; }
 
-        .settings-header { color: #aaa; font-size: 0.9rem; margin-top: 20px; margin-bottom: 10px; }
+        /* 詳細設定（折りたたみ） */
+        details { width: 95%; margin-top: 25px; color: #aaa; border: 1px solid #333; border-radius: 5px; }
+        summary { cursor: pointer; padding: 10px; background: #222; text-align: center; font-size: 0.9rem; list-style: none; }
         #settings { 
-            background: #222; border: 1px solid #444; padding: 10px; width: 95%;
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 30px;
+            background: #111; padding: 10px; 
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
         }
-        .check-item { background: #333; padding: 10px 12px; border-radius: 6px; font-size: 1rem; color: #fff; display: flex; align-items: center; }
-        input[type="checkbox"] { transform: scale(1.6); margin-right: 10px; }
-        
-        button.ctrl-btn { padding: 10px 15px; font-size: 1rem; margin: 5px; background: #444; color: #fff; border: none; border-radius: 4px; }
+        .check-item { background: #333; padding: 8px 10px; border-radius: 6px; font-size: 0.9rem; color: #fff; display: flex; align-items: center; }
+        input[type="checkbox"] { transform: scale(1.4); margin-right: 8px; }
+        button.ctrl-btn { padding: 8px 12px; font-size: 0.8rem; margin: 5px; background: #444; color: #fff; border: none; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -51,6 +63,13 @@
 
     <div id="log-container">ログ読み込み中...</div>
 
+    <div id="server-status">
+        <div class="status-label">現在サーバー側で有効な通知対象:</div>
+        <div class="status-content">
+            スプリンクラー、天候、シュガーアップル、スターフルーツ、かぼちゃ、豆の木、パパイヤ
+        </div>
+    </div>
+
     <div id="core-settings">
         <label id="audio-label" class="core-item">
             <input type="checkbox" id="audio-switch" style="display:none;"> 🔊 音声通知
@@ -60,14 +79,16 @@
         </label>
     </div>
 
-    <div class="settings-header">▼ 通知音を鳴らす種を選択</div>
-    <div id="settings">
-        <div id="check-list-container" style="display:contents;"></div>
-        <div style="width:100%; text-align:center; margin-top:10px;">
-            <button class="ctrl-btn" onclick="allCheck(true)">全選択</button>
-            <button class="ctrl-btn" onclick="allCheck(false)">全解除</button>
+    <details>
+        <summary>▼ ブラウザ側フィルタ詳細設定 (次回用)</summary>
+        <div id="settings">
+            <div id="check-list-container" style="display:contents;"></div>
+            <div style="width:100%; text-align:center; margin-top:10px; border-top: 1px solid #333; pt-10px;">
+                <button class="ctrl-btn" onclick="allCheck(true)">全選択</button>
+                <button class="ctrl-btn" onclick="allCheck(false)">全解除</button>
+            </div>
         </div>
-    </div>
+    </details>
 
     <script>
         const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
@@ -75,7 +96,7 @@
         let nextRefreshTime = null;
         const noSleep = new NoSleep();
 
-        // ターゲット種リスト
+        // ターゲット全リスト
         const TARGETS = [
             "スプリンクラー", "天候", "いちご", "ブルーベリー", "りんご", "サボテン", "ぶどう", "すいか", 
             "ココナッツ", "マンゴー", "シュガーアップル", "スターフルーツ", "にんじん", "トマト", 
@@ -93,18 +114,18 @@
             container.appendChild(label);
         });
 
-        // 音声スイッチの挙動
+        // 音声スイッチ
         document.getElementById('audio-switch').addEventListener('change', function() {
             const label = document.getElementById('audio-label');
             if(this.checked) {
                 label.classList.add('active-audio');
-                playNotifySound(); // テスト音
+                playNotifySound();
             } else {
                 label.classList.remove('active-audio');
             }
         });
 
-        // スリープ防止スイッチの挙動
+        // スリープ防止
         document.getElementById('nosleep-switch').addEventListener('change', function() {
             const label = document.getElementById('nosleep-label');
             if(this.checked) {
@@ -150,6 +171,7 @@
                 if (lastContent !== "" && currentContent !== lastContent) {
                     const latestLine = currentContent.split('\n')[0];
                     const selectedTargets = Array.from(document.querySelectorAll('#settings input:checked')).map(cb => cb.value);
+                    // サーバーから来た最新行に、チェック済みのワードが含まれているか判定
                     if (selectedTargets.some(t => latestLine.includes(t)) && audioOn) playNotifySound();
                 }
                 document.getElementById('log-container').innerText = currentContent;

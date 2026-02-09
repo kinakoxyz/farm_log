@@ -2,55 +2,62 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>農園ログ ライブビュー (通知設定付き)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>農園ログ ライブビュー</title>
     <style>
-        body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; margin: 10px; display: flex; flex-direction: column; align-items: center; }
-        .header { text-align: center; margin-bottom: 10px; }
-        .status { color: #cccccc; font-size: 0.8em; margin-bottom: 10px; }
+        body { background: #000; color: #0f0; font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
         
-        /* 設定エリア */
+        /* 時計とカウントダウン */
+        .timer-section { width: 100%; text-align: center; background: #111; padding: 15px 0; border-bottom: 2px solid #333; margin-bottom: 10px; }
+        #clock { font-size: 2.5rem; font-weight: bold; color: #fff; }
+        #countdown { font-size: 1.5rem; color: #ff3333; margin-top: 5px; }
+
+        /* 通知設定（スマホで押しやすく） */
         #settings { 
-            background: #252525; border: 1px solid #444; padding: 10px; width: 95%; max-width: 800px;
-            margin-bottom: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+            background: #222; border: 1px solid #444; padding: 10px; width: 95%;
+            margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
         }
-        .check-item { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; color: #eee; cursor: pointer; }
-        .check-item input { cursor: pointer; }
+        .check-item { background: #333; padding: 10px 15px; border-radius: 8px; font-size: 1.1rem; color: #fff; display: flex; align-items: center; }
+        input[type="checkbox"] { transform: scale(1.8); margin-right: 10px; }
         
-        /* ログエリア */
+        /* ログエリア（文字を大きく！） */
         #log-container { 
-            width: 95%; max-width: 800px; height: 60vh; 
-            border: 1px solid #333; background: #000; padding: 15px;
+            width: 95%; height: 50vh; 
+            border: 2px solid #00ff00; background: #000; padding: 15px;
             text-align: left; overflow-y: auto; white-space: pre-wrap;
-            box-shadow: inset 0 0 10px #003300; font-size: 0.9em;
+            font-size: 1.4rem; line-height: 1.6; font-family: 'Courier New', monospace;
         }
-        .click-notice { color: #ffaa00; font-weight: bold; cursor: pointer; padding: 10px; border: 2px solid #ffaa00; margin-bottom: 10px; width: 95%; max-width: 800px; text-align: center; }
+
+        .click-notice { background: #ffaa00; color: #000; font-weight: bold; padding: 20px; border-radius: 10px; margin-bottom: 15px; width: 90%; text-align: center; font-size: 1.2rem; cursor: pointer; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        button { padding: 10px 20px; font-size: 1rem; margin: 5px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h3>農園ボット ライブログ 🔔</h3>
+
+    <div id="click-me" class="click-notice">タップして音声を有効にする</div>
+
+    <div class="timer-section">
+        <div id="clock">00:00:00</div>
+        <div id="countdown">次回更新まで: --秒</div>
     </div>
 
-    <div id="click-me" class="click-notice">【ここをクリックして音声を有効にする】</div>
-    <div id="status" class="status">次回更新を計算中...</div>
-
     <div id="settings">
-        <div style="width:100%; text-align:center; font-size:0.8em; color:#aaa; margin-bottom:5px;">通知音を鳴らすターゲットを選択</div>
         <div id="check-list-container" style="display:contents;"></div>
-        <div style="width:100%; text-align:center; margin-top:5px;">
-            <button onclick="allCheck(true)" style="font-size:0.7em;">全選択</button>
-            <button onclick="allCheck(false)" style="font-size:0.7em;">全解除</button>
+        <div style="width:100%; text-align:center; margin-top:10px;">
+            <button onclick="allCheck(true)">全選択</button>
+            <button onclick="allCheck(false)">全解除</button>
         </div>
     </div>
     
-    <div id="log-container">ログを読み込み中...</div>
+    <div id="log-container">接続中...</div>
 
     <script>
         const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
         let lastContent = "";
         let audioEnabled = false;
+        let nextRefreshTime = null;
 
-        // ターゲットリスト
         const TARGETS = [
             "スプリンクラー", "天候", "いちご", "ブルーベリー", "りんご", "サボテン", "ぶどう", "すいか", 
             "ココナッツ", "マンゴー", "シュガーアップル", "スターフルーツ", "にんじん", "トマト", 
@@ -59,7 +66,7 @@
             "悪霊すいか", "ネクタリン", "古代の果実", "絶叫カボチャ", "イチジク", "トゲバンレイシ", "パパイヤ"
         ];
 
-        // チェックボックスの生成
+        // UI構築
         const container = document.getElementById('check-list-container');
         TARGETS.forEach(item => {
             const label = document.createElement('label');
@@ -68,9 +75,7 @@
             container.appendChild(label);
         });
 
-        function allCheck(bool) {
-            document.querySelectorAll('#settings input').forEach(cb => cb.checked = bool);
-        }
+        function allCheck(bool) { document.querySelectorAll('#settings input').forEach(cb => cb.checked = bool); }
 
         document.addEventListener('click', () => {
             if(!audioEnabled){
@@ -79,41 +84,45 @@
             }
         });
 
+        // リアルタイム時計 & カウントダウン
+        function updateTimers() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+
+            if (nextRefreshTime) {
+                const diff = Math.max(0, Math.floor((nextRefreshTime - now) / 1000));
+                document.getElementById('countdown').innerText = `次回更新まで: あと ${diff} 秒`;
+                
+                if (diff <= 0) {
+                    // 更新タイミングが来たら少し待って（1秒）フェッチ
+                    nextRefreshTime = null;
+                    setTimeout(() => { fetchLog(); calculateNextTime(); }, 1500);
+                }
+            }
+        }
+        setInterval(updateTimers, 1000);
+
+        function calculateNextTime() {
+            const now = new Date();
+            const min = now.getMinutes();
+            let nextMin = (Math.floor(min / 5) * 5) + 6; // 5n+1分
+            const target = new Date();
+            target.setMinutes(nextMin); target.setSeconds(0); target.setMilliseconds(0);
+            nextRefreshTime = target;
+        }
+
         async function fetchLog() {
             try {
                 const response = await fetch(GIST_URL + "?t=" + new Date().getTime());
                 const currentContent = await response.text();
-
                 if (lastContent !== "" && currentContent !== lastContent) {
-                    const lines = currentContent.split('\n');
-                    const latestLine = lines[0]; 
-
-                    // チェックされている項目を取得
+                    const latestLine = currentContent.split('\n')[0];
                     const selectedTargets = Array.from(document.querySelectorAll('#settings input:checked')).map(cb => cb.value);
-                    
-                    // ターゲットが含まれているか判定
-                    const hit = selectedTargets.some(target => latestLine.includes(target));
-                    
-                    if (hit && audioEnabled) {
-                        playNotifySound();
-                    }
+                    if (selectedTargets.some(t => latestLine.includes(t)) && audioEnabled) playNotifySound();
                 }
                 document.getElementById('log-container').innerText = currentContent;
                 lastContent = currentContent;
-            } catch (e) {
-                document.getElementById('log-container').innerText = "取得エラー: " + e;
-            }
-        }
-
-        function scheduleNextRefresh() {
-            const now = new Date();
-            const min = now.getMinutes();
-            let nextMin = (Math.floor(min / 5) * 5) + 6;
-            const target = new Date();
-            target.setMinutes(nextMin); target.setSeconds(0); target.setMilliseconds(0);
-            const diff = target.getTime() - now.getTime();
-            document.getElementById('status').innerText = "最終更新: " + now.toLocaleTimeString() + " | 次回更新: " + target.getHours() + ":" + String(target.getMinutes()).padStart(2, '0') + ":00";
-            setTimeout(async () => { await fetchLog(); scheduleNextRefresh(); }, diff);
+            } catch (e) { console.error(e); }
         }
 
         function playNotifySound() {
@@ -122,19 +131,17 @@
             gain.connect(context.destination);
             const playTone = (freq, start, duration) => {
                 const osc = context.createOscillator();
-                osc.type = "sine";
                 osc.frequency.setValueAtTime(freq, context.currentTime + start);
                 osc.connect(gain);
                 gain.gain.setValueAtTime(0.1, context.currentTime + start);
                 osc.start(context.currentTime + start);
                 osc.stop(context.currentTime + start + duration);
             };
-            playTone(880, 0, 0.1);    // ピ
-            playTone(1046.5, 0.15, 0.1); // ピッ
+            playTone(880, 0, 0.1); playTone(1046.5, 0.15, 0.1);
         }
 
         fetchLog();
-        scheduleNextRefresh();
+        calculateNextTime();
     </script>
 </body>
 </html>

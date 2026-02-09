@@ -2,109 +2,139 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>農園ログ ライブビュー（接続修正版）</title>
+    <title>農園ログ ライブビュー (通知設定付き)</title>
     <style>
-        body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; margin: 20px; text-align: center; }
-        .info { color: #cccccc; font-size: 0.8em; margin-bottom: 10px; }
+        body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; margin: 10px; display: flex; flex-direction: column; align-items: center; }
+        .header { text-align: center; margin-bottom: 10px; }
+        .status { color: #cccccc; font-size: 0.8em; margin-bottom: 10px; }
+        
+        /* 設定エリア */
+        #settings { 
+            background: #252525; border: 1px solid #444; padding: 10px; width: 95%; max-width: 800px;
+            margin-bottom: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+        }
+        .check-item { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; color: #eee; cursor: pointer; }
+        .check-item input { cursor: pointer; }
+        
+        /* ログエリア */
         #log-container { 
-            width: 90%; max-width: 800px; height: 75vh; margin: 0 auto;
+            width: 95%; max-width: 800px; height: 60vh; 
             border: 1px solid #333; background: #000; padding: 15px;
             text-align: left; overflow-y: auto; white-space: pre-wrap;
-            box-shadow: inset 0 0 10px #003300;
+            box-shadow: inset 0 0 10px #003300; font-size: 0.9em;
         }
-        .click-notice { color: #ffaa00; font-weight: bold; cursor: pointer; padding: 10px; border: 2px solid #ffaa00; display: inline-block; margin-bottom: 15px; }
+        .click-notice { color: #ffaa00; font-weight: bold; cursor: pointer; padding: 10px; border: 2px solid #ffaa00; margin-bottom: 10px; width: 95%; max-width: 800px; text-align: center; }
     </style>
 </head>
 <body>
-    <h3>農園ボット ライブログ 🔔</h3>
-    <div id="click-me" class="click-notice">ここをクリックして音声通知を有効にする</div>
-    <div id="status" class="info">次回更新を計算中...</div>
+    <div class="header">
+        <h3>農園ボット ライブログ 🔔</h3>
+    </div>
+
+    <div id="click-me" class="click-notice">【ここをクリックして音声を有効にする】</div>
+    <div id="status" class="status">次回更新を計算中...</div>
+
+    <div id="settings">
+        <div style="width:100%; text-align:center; font-size:0.8em; color:#aaa; margin-bottom:5px;">通知音を鳴らすターゲットを選択</div>
+        <div id="check-list-container" style="display:contents;"></div>
+        <div style="width:100%; text-align:center; margin-top:5px;">
+            <button onclick="allCheck(true)" style="font-size:0.7em;">全選択</button>
+            <button onclick="allCheck(false)" style="font-size:0.7em;">全解除</button>
+        </div>
+    </div>
     
     <div id="log-container">ログを読み込み中...</div>
 
     <script>
+        const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
         let lastContent = "";
         let audioEnabled = false;
-        const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
 
-        // 画面クリックで音声許可
-        document.addEventListener('click', () => {
-            audioEnabled = true;
-            document.getElementById('click-me').style.backgroundColor = '#332200';
-            document.getElementById('click-me').innerText = '✅ 音声通知 ON';
+        // ターゲットリスト
+        const TARGETS = [
+            "スプリンクラー", "天候", "いちご", "ブルーベリー", "りんご", "サボテン", "ぶどう", "すいか", 
+            "ココナッツ", "マンゴー", "シュガーアップル", "スターフルーツ", "にんじん", "トマト", 
+            "とうもろこし", "キノコ", "かぼちゃ", "豆の木", "トゥースキノコ", "一つ目キノコ", 
+            "魔女キノコ", "コウモリキノコ", "トゥーストゲ花", "トゥーススイセン", "鬼火キノコ", 
+            "悪霊すいか", "ネクタリン", "古代の果実", "絶叫カボチャ", "イチジク", "トゲバンレイシ", "パパイヤ"
+        ];
+
+        // チェックボックスの生成
+        const container = document.getElementById('check-list-container');
+        TARGETS.forEach(item => {
+            const label = document.createElement('label');
+            label.className = 'check-item';
+            label.innerHTML = `<input type="checkbox" value="${item}" checked> ${item}`;
+            container.appendChild(label);
         });
 
-        // データを取得して表示する関数
+        function allCheck(bool) {
+            document.querySelectorAll('#settings input').forEach(cb => cb.checked = bool);
+        }
+
+        document.addEventListener('click', () => {
+            if(!audioEnabled){
+                audioEnabled = true;
+                document.getElementById('click-me').style.display = 'none';
+            }
+        });
+
         async function fetchLog() {
             try {
-                // キャッシュ回避のためにタイムスタンプを付与
                 const response = await fetch(GIST_URL + "?t=" + new Date().getTime());
                 const currentContent = await response.text();
 
-                // 内容に変化があれば音を鳴らす
-                if (lastContent !== "" && currentContent !== lastContent && audioEnabled) {
-                    playNotifySound();
-                }
+                if (lastContent !== "" && currentContent !== lastContent) {
+                    const lines = currentContent.split('\n');
+                    const latestLine = lines[0]; 
 
-                // 画面を更新
+                    // チェックされている項目を取得
+                    const selectedTargets = Array.from(document.querySelectorAll('#settings input:checked')).map(cb => cb.value);
+                    
+                    // ターゲットが含まれているか判定
+                    const hit = selectedTargets.some(target => latestLine.includes(target));
+                    
+                    if (hit && audioEnabled) {
+                        playNotifySound();
+                    }
+                }
                 document.getElementById('log-container').innerText = currentContent;
                 lastContent = currentContent;
             } catch (e) {
-                document.getElementById('log-container').innerText = "エラー: ログの取得に失敗しました。\n" + e;
+                document.getElementById('log-container').innerText = "取得エラー: " + e;
             }
         }
 
-        // 次の「5分+1分」のタイミングまで待機するループ
         function scheduleNextRefresh() {
             const now = new Date();
             const min = now.getMinutes();
-            const sec = now.getSeconds();
-
-            // 次の目標（5の倍数 + 1分）を計算
             let nextMin = (Math.floor(min / 5) * 5) + 6;
-            
             const target = new Date();
-            target.setMinutes(nextMin);
-            target.setSeconds(0);
-            target.setMilliseconds(0);
-
+            target.setMinutes(nextMin); target.setSeconds(0); target.setMilliseconds(0);
             const diff = target.getTime() - now.getTime();
-            
-            document.getElementById('status').innerText = 
-                "最終更新: " + now.toLocaleTimeString() + " | 次回自動更新: " + target.getHours() + ":" + String(target.getMinutes()).padStart(2, '0') + ":00";
-
-            setTimeout(async () => {
-                await fetchLog();
-                scheduleNextRefresh(); // 次のタイマーをセット
-            }, diff);
+            document.getElementById('status').innerText = "最終更新: " + now.toLocaleTimeString() + " | 次回更新: " + target.getHours() + ":" + String(target.getMinutes()).padStart(2, '0') + ":00";
+            setTimeout(async () => { await fetchLog(); scheduleNextRefresh(); }, diff);
         }
 
-        // 起動時の処理
-        fetchLog();
-        scheduleNextRefresh();
-
-        // 簡易的な通知音
         function playNotifySound() {
             const context = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = context.createOscillator();
             const gain = context.createGain();
-            osc.type = "sine";
-            osc.connect(gain);
             gain.connect(context.destination);
-            
-            osc.frequency.setValueAtTime(880, context.currentTime);
-            gain.gain.setValueAtTime(0.1, context.currentTime);
-            osc.start();
-            osc.stop(context.currentTime + 0.15);
-            
-            setTimeout(() => {
-                const osc2 = context.createOscillator();
-                osc2.connect(gain);
-                osc2.frequency.setValueAtTime(1046.5, context.currentTime); // 少し高い音
-                osc2.start();
-                osc2.stop(context.currentTime + 0.15);
-            }, 150);
+            const playTone = (freq, start, duration) => {
+                const osc = context.createOscillator();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, context.currentTime + start);
+                osc.connect(gain);
+                gain.gain.setValueAtTime(0.1, context.currentTime + start);
+                osc.start(context.currentTime + start);
+                osc.stop(context.currentTime + start + duration);
+            };
+            playTone(880, 0, 0.1);    // ピ
+            playTone(1046.5, 0.15, 0.1); // ピッ
         }
+
+        fetchLog();
+        scheduleNextRefresh();
     </script>
 </body>
 </html>

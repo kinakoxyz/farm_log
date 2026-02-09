@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>農園ログ ライブビュー（接続修正版）</title>
+    <style>
+        body { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; margin: 20px; text-align: center; }
+        .info { color: #cccccc; font-size: 0.8em; margin-bottom: 10px; }
+        #log-container { 
+            width: 90%; max-width: 800px; height: 75vh; margin: 0 auto;
+            border: 1px solid #333; background: #000; padding: 15px;
+            text-align: left; overflow-y: auto; white-space: pre-wrap;
+            box-shadow: inset 0 0 10px #003300;
+        }
+        .click-notice { color: #ffaa00; font-weight: bold; cursor: pointer; padding: 10px; border: 2px solid #ffaa00; display: inline-block; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <h3>農園ボット ライブログ 🔔</h3>
+    <div id="click-me" class="click-notice">ここをクリックして音声通知を有効にする</div>
+    <div id="status" class="info">次回更新を計算中...</div>
+    
+    <div id="log-container">ログを読み込み中...</div>
+
+    <script>
+        let lastContent = "";
+        let audioEnabled = false;
+        const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
+
+        // 画面クリックで音声許可
+        document.addEventListener('click', () => {
+            audioEnabled = true;
+            document.getElementById('click-me').style.backgroundColor = '#332200';
+            document.getElementById('click-me').innerText = '✅ 音声通知 ON';
+        });
+
+        // データを取得して表示する関数
+        async function fetchLog() {
+            try {
+                // キャッシュ回避のためにタイムスタンプを付与
+                const response = await fetch(GIST_URL + "?t=" + new Date().getTime());
+                const currentContent = await response.text();
+
+                // 内容に変化があれば音を鳴らす
+                if (lastContent !== "" && currentContent !== lastContent && audioEnabled) {
+                    playNotifySound();
+                }
+
+                // 画面を更新
+                document.getElementById('log-container').innerText = currentContent;
+                lastContent = currentContent;
+            } catch (e) {
+                document.getElementById('log-container').innerText = "エラー: ログの取得に失敗しました。\n" + e;
+            }
+        }
+
+        // 次の「5分+1分」のタイミングまで待機するループ
+        function scheduleNextRefresh() {
+            const now = new Date();
+            const min = now.getMinutes();
+            const sec = now.getSeconds();
+
+            // 次の目標（5の倍数 + 1分）を計算
+            let nextMin = (Math.floor(min / 5) * 5) + 6;
+            
+            const target = new Date();
+            target.setMinutes(nextMin);
+            target.setSeconds(0);
+            target.setMilliseconds(0);
+
+            const diff = target.getTime() - now.getTime();
+            
+            document.getElementById('status').innerText = 
+                "最終更新: " + now.toLocaleTimeString() + " | 次回自動更新: " + target.getHours() + ":" + String(target.getMinutes()).padStart(2, '0') + ":00";
+
+            setTimeout(async () => {
+                await fetchLog();
+                scheduleNextRefresh(); // 次のタイマーをセット
+            }, diff);
+        }
+
+        // 起動時の処理
+        fetchLog();
+        scheduleNextRefresh();
+
+        // 簡易的な通知音
+        function playNotifySound() {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = context.createOscillator();
+            const gain = context.createGain();
+            osc.type = "sine";
+            osc.connect(gain);
+            gain.connect(context.destination);
+            
+            osc.frequency.setValueAtTime(880, context.currentTime);
+            gain.gain.setValueAtTime(0.1, context.currentTime);
+            osc.start();
+            osc.stop(context.currentTime + 0.15);
+            
+            setTimeout(() => {
+                const osc2 = context.createOscillator();
+                osc2.connect(gain);
+                osc2.frequency.setValueAtTime(1046.5, context.currentTime); // 少し高い音
+                osc2.start();
+                osc2.stop(context.currentTime + 0.15);
+            }, 150);
+        }
+    </script>
+</body>
+</html>

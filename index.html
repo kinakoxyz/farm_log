@@ -4,63 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>農園ログ ライブビュー</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
     <style>
         body { background: #000; color: #0f0; font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
         
-        /* 1. 時計・カウントダウンエリア */
         .timer-section { width: 100%; text-align: center; background: #111; padding: 10px 0; border-bottom: 1px solid #333; }
         #clock { font-size: 2.8rem; font-weight: bold; color: #fff; line-height: 1.1; }
         #countdown { font-size: 1.3rem; color: #ff3333; margin-top: 5px; font-weight: bold; }
 
-        /* 2. メインログエリア（時計のすぐ下） */
         #log-container { 
-            width: 95%; height: 55vh; 
+            width: 95%; height: 50vh; 
             border: 2px solid #00ff00; background: #000; padding: 10px;
             margin-top: 10px; text-align: left; overflow-y: auto; white-space: pre-wrap;
             font-size: 1.4rem; line-height: 1.5; font-family: 'Courier New', monospace;
             box-sizing: border-box;
         }
 
-        /* 3. 設定エリア（ログの下へ） */
+        /* 特別設定エリア（音声とスリープ） */
+        #core-settings {
+            width: 95%; margin-top: 15px; display: flex; justify-content: space-around; gap: 10px;
+        }
+        .core-item { 
+            flex: 1; padding: 15px; border-radius: 10px; font-weight: bold; text-align: center; font-size: 1.1rem;
+            border: 2px solid #555; cursor: pointer;
+        }
+        .active-audio { background: #aa7700; color: #fff; border-color: #ffaa00; }
+        .active-nosleep { background: #005500; color: #fff; border-color: #00ff00; }
+
         .settings-header { color: #aaa; font-size: 0.9rem; margin-top: 20px; margin-bottom: 10px; }
         #settings { 
             background: #222; border: 1px solid #444; padding: 10px; width: 95%;
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
-            margin-bottom: 30px; /* 下に余白 */
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 30px;
         }
-        .check-item { background: #333; padding: 8px 12px; border-radius: 6px; font-size: 1rem; color: #fff; display: flex; align-items: center; }
-        input[type="checkbox"] { transform: scale(1.5); margin-right: 8px; }
+        .check-item { background: #333; padding: 10px 12px; border-radius: 6px; font-size: 1rem; color: #fff; display: flex; align-items: center; }
+        input[type="checkbox"] { transform: scale(1.6); margin-right: 10px; }
         
-        .click-notice { background: #ffaa00; color: #000; font-weight: bold; padding: 15px; border-radius: 10px; margin-bottom: 10px; width: 95%; text-align: center; font-size: 1.1rem; cursor: pointer; }
-        button { padding: 8px 15px; font-size: 0.9rem; margin: 5px; background: #444; color: #fff; border: none; border-radius: 4px; }
+        button.ctrl-btn { padding: 10px 15px; font-size: 1rem; margin: 5px; background: #444; color: #fff; border: none; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-    <div id="click-me" class="click-notice">⚠️ タップして音声を有効にする</div>
-
     <div class="timer-section">
         <div id="clock">00:00:00</div>
-        <div id="countdown">次回更新まで: --秒</div>
+        <div id="countdown">更新まで: --秒</div>
     </div>
 
     <div id="log-container">ログ読み込み中...</div>
 
-    <div class="settings-header">▼ 通知音を鳴らすターゲット設定</div>
+    <div id="core-settings">
+        <label id="audio-label" class="core-item">
+            <input type="checkbox" id="audio-switch" style="display:none;"> 🔊 音声通知
+        </label>
+        <label id="nosleep-label" class="core-item">
+            <input type="checkbox" id="nosleep-switch" style="display:none;"> 🚫 スリープ防止
+        </label>
+    </div>
+
+    <div class="settings-header">▼ 通知音を鳴らす種を選択</div>
     <div id="settings">
         <div id="check-list-container" style="display:contents;"></div>
         <div style="width:100%; text-align:center; margin-top:10px;">
-            <button onclick="allCheck(true)">全選択</button>
-            <button onclick="allCheck(false)">全解除</button>
+            <button class="ctrl-btn" onclick="allCheck(true)">全選択</button>
+            <button class="ctrl-btn" onclick="allCheck(false)">全解除</button>
         </div>
     </div>
 
     <script>
         const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
         let lastContent = "";
-        let audioEnabled = false;
         let nextRefreshTime = null;
+        const noSleep = new NoSleep();
 
+        // ターゲット種リスト
         const TARGETS = [
             "スプリンクラー", "天候", "いちご", "ブルーベリー", "りんご", "サボテン", "ぶどう", "すいか", 
             "ココナッツ", "マンゴー", "シュガーアップル", "スターフルーツ", "にんじん", "トマト", 
@@ -69,6 +84,7 @@
             "悪霊すいか", "ネクタリン", "古代の果実", "絶叫カボチャ", "イチジク", "トゲバンレイシ", "パパイヤ"
         ];
 
+        // チェックボックス生成
         const container = document.getElementById('check-list-container');
         TARGETS.forEach(item => {
             const label = document.createElement('label');
@@ -77,21 +93,37 @@
             container.appendChild(label);
         });
 
-        function allCheck(bool) { document.querySelectorAll('#settings input').forEach(cb => cb.checked = bool); }
-
-        document.addEventListener('click', () => {
-            if(!audioEnabled){
-                audioEnabled = true;
-                document.getElementById('click-me').style.display = 'none';
+        // 音声スイッチの挙動
+        document.getElementById('audio-switch').addEventListener('change', function() {
+            const label = document.getElementById('audio-label');
+            if(this.checked) {
+                label.classList.add('active-audio');
+                playNotifySound(); // テスト音
+            } else {
+                label.classList.remove('active-audio');
             }
         });
+
+        // スリープ防止スイッチの挙動
+        document.getElementById('nosleep-switch').addEventListener('change', function() {
+            const label = document.getElementById('nosleep-label');
+            if(this.checked) {
+                noSleep.enable();
+                label.classList.add('active-nosleep');
+            } else {
+                noSleep.disable();
+                label.classList.remove('active-nosleep');
+            }
+        });
+
+        function allCheck(bool) { document.querySelectorAll('#settings input').forEach(cb => cb.checked = bool); }
 
         function updateTimers() {
             const now = new Date();
             document.getElementById('clock').innerText = now.toLocaleTimeString();
             if (nextRefreshTime) {
                 const diff = Math.max(0, Math.floor((nextRefreshTime - now) / 1000));
-                document.getElementById('countdown').innerText = `次回更新まで: あと ${diff} 秒`;
+                document.getElementById('countdown').innerText = `更新まで: あと ${diff} 秒`;
                 if (diff <= 0) {
                     nextRefreshTime = null;
                     setTimeout(() => { fetchLog(); calculateNextTime(); }, 1500);
@@ -113,10 +145,12 @@
             try {
                 const response = await fetch(GIST_URL + "?t=" + new Date().getTime());
                 const currentContent = await response.text();
+                const audioOn = document.getElementById('audio-switch').checked;
+                
                 if (lastContent !== "" && currentContent !== lastContent) {
                     const latestLine = currentContent.split('\n')[0];
                     const selectedTargets = Array.from(document.querySelectorAll('#settings input:checked')).map(cb => cb.value);
-                    if (selectedTargets.some(t => latestLine.includes(t)) && audioEnabled) playNotifySound();
+                    if (selectedTargets.some(t => latestLine.includes(t)) && audioOn) playNotifySound();
                 }
                 document.getElementById('log-container').innerText = currentContent;
                 lastContent = currentContent;

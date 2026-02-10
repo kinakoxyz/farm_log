@@ -3,83 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FarmLog Live Monitor</title>
+    <title>FarmLog Live Monitor Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
     <style>
         :root {
-            --bg-color: #0d0d0d;
-            --panel-bg: #161616;
-            --text-main: #e0e0e0;
-            --accent-green: #00ff41;
-            --accent-dim: #008f11;
-            --border-color: #333;
+            --bg-color: #0d0d0d; --panel-bg: #161616; --text-main: #e0e0e0;
+            --accent-green: #00ff41; --accent-dim: #008f11; --border-color: #333;
             --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
         body { 
             background: var(--bg-color); color: var(--text-main); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+            font-family: -apple-system, sans-serif; margin: 0; padding: 0; 
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
         }
-
         header { 
             width: 100%; background: #000; border-bottom: 1px solid var(--border-color); 
             padding: 15px 0; text-align: center; position: sticky; top: 0; z-index: 100;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
-        #clock { font-family: var(--font-mono); font-size: 2.2rem; font-weight: 700; color: #fff; letter-spacing: 2px; }
+        #clock { font-family: var(--font-mono); font-size: 2.2rem; font-weight: 700; color: #fff; }
         #countdown-bar { width: 100%; height: 4px; background: #222; margin-top: 10px; position: relative; }
         #countdown-progress { height: 100%; background: var(--accent-green); width: 0%; transition: width 1s linear; }
-        #next-update-text { font-size: 0.8rem; color: #888; margin-top: 5px; font-family: var(--font-mono); }
-
+        
         .container { width: 96%; max-width: 800px; padding: 10px 0 40px 0; display: flex; flex-direction: column; gap: 15px; }
-
-        .panel { 
-            background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .panel-header { 
-            font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 1px; 
-            margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .status-indicator {
-            display: inline-block; width: 8px; height: 8px; background: var(--accent-green);
-            border-radius: 50%; box-shadow: 0 0 8px var(--accent-green); margin-right: 6px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
+        .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; }
+        .panel-header { font-size: 0.75rem; color: #666; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        
         #log-container { 
-            height: 40vh; overflow-y: auto; white-space: pre-wrap;
-            font-family: var(--font-mono); font-size: 1.3rem; line-height: 1.5; color: #eee;
+            height: 35vh; overflow-y: auto; white-space: pre-wrap;
+            font-family: var(--font-mono); font-size: 1.2rem; line-height: 1.4; color: #eee;
             background: #000; border: 1px solid #333; padding: 10px; border-radius: 4px;
         }
 
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        /* 3つのトグルスイッチ用グリッド */
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .toggle-btn {
-            background: #222; border: 1px solid #444; color: #888; padding: 12px;
-            border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; font-size: 0.9rem;
-            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: #222; border: 1px solid #444; color: #666; padding: 10px 5px;
+            border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; font-size: 0.75rem;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px;
         }
         .toggle-btn.active { background: #003300; border-color: var(--accent-green); color: #fff; }
         .toggle-btn input { display: none; }
+        .toggle-btn span.icon { font-size: 1.2rem; }
 
         .target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
         .target-item {
             background: #222; border: 1px solid #333; padding: 8px 10px; border-radius: 4px;
-            font-size: 0.85rem; color: #bbb; display: flex; align-items: center; cursor: pointer; user-select: none;
-            transition: all 0.2s;
+            font-size: 0.85rem; color: #bbb; display: flex; align-items: center; cursor: pointer;
         }
-        .target-item:hover { background: #2a2a2a; }
-        .target-item input { margin-right: 8px; accent-color: var(--accent-green); transform: scale(1.2); }
-        
-        /* チェックが入っている時のスタイル */
         .target-item.notif-enabled { border-color: var(--accent-green); color: #fff; background: #0b1a0b; }
+        .target-item input { margin-right: 8px; accent-color: var(--accent-green); }
 
         details { border-top: 1px solid #333; margin-top: 10px; }
-        summary { padding: 15px; color: #555; font-size: 0.8rem; cursor: pointer; list-style: none; text-align: center; }
-        summary::after { content: " ▼"; font-size: 0.7em; }
-        details[open] summary::after { content: " ▲"; }
-        .inactive-area { background: #111; padding: 15px; border-radius: 4px; }
+        summary { padding: 15px; color: #555; font-size: 0.8rem; cursor: pointer; text-align: center; list-style: none; }
     </style>
 </head>
 <body>
@@ -87,42 +62,38 @@
 <header>
     <div id="clock">00:00:00</div>
     <div id="countdown-bar"><div id="countdown-progress"></div></div>
-    <div id="next-update-text">NEXT UPDATE IN -- SEC</div>
 </header>
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">
-            <span><span class="status-indicator"></span>LIVE LOG</span>
-            <span style="font-size:0.7rem; opacity:0.7;">GIST: CONNECTED</span>
-        </div>
-        <div id="log-container">Initializing system...</div>
+        <div class="panel-header"><span>LIVE LOG (AUTO REFRESH)</span></div>
+        <div id="log-container">Loading log...</div>
     </div>
 
     <div class="controls-grid">
         <label class="toggle-btn" id="audio-btn">
-            <input type="checkbox" id="audio-switch"> <span>🔊 AUDIO NOTIFY</span>
+            <input type="checkbox" id="audio-switch"> <span class="icon">🔊</span><span>AUDIO</span>
+        </label>
+        <label class="toggle-btn" id="push-btn">
+            <input type="checkbox" id="push-switch"> <span class="icon">💬</span><span>PUSH</span>
         </label>
         <label class="toggle-btn" id="nosleep-btn">
-            <input type="checkbox" id="nosleep-switch"> <span>👁️ NO SLEEP</span>
+            <input type="checkbox" id="nosleep-switch"> <span class="icon">👁️</span><span>SLEEP</span>
         </label>
     </div>
 
     <div class="panel">
-        <div class="panel-header">ACTIVE MONITORS (チェックした項目の音が鳴ります)</div>
+        <div class="panel-header">SELECT TARGETS TO NOTIFY</div>
         <div id="active-list" class="target-grid"></div>
     </div>
 
     <details>
-        <summary>INACTIVE / STANDBY TARGETS (ボットが停止中の項目)</summary>
-        <div class="inactive-area">
-            <div id="inactive-list" class="target-grid" style="opacity: 0.5;"></div>
-        </div>
+        <summary>STANDBY / ALL TARGETS ▼</summary>
+        <div id="inactive-list" class="target-grid" style="padding:10px; opacity:0.5;"></div>
     </details>
 </div>
 
 <script>
-    // --- 初期化 ---
     let noSleep = null;
     try { if (typeof NoSleep !== 'undefined') noSleep = new NoSleep(); } catch (e) {}
 
@@ -137,29 +108,22 @@
 
     let lastContent = "";
     let nextRefreshTime = null;
-    let botActiveTargets = []; // ボットが実際に今監視しているリスト
-    let userNotifyTargets = JSON.parse(localStorage.getItem('userNotifyTargets') || '[]'); // ユーザーがチェックしたリスト
+    let botActiveTargets = []; 
+    let userNotifyTargets = JSON.parse(localStorage.getItem('userNotifyTargets') || '[]'); 
 
-    // UI描画
     function renderTargets() {
         const activeContainer = document.getElementById('active-list');
         const inactiveContainer = document.getElementById('inactive-list');
-        activeContainer.innerHTML = '';
-        inactiveContainer.innerHTML = '';
+        activeContainer.innerHTML = ''; inactiveContainer.innerHTML = '';
 
         ALL_TARGETS.forEach(item => {
             const isBotMonitoring = botActiveTargets.includes(item);
             const isUserChecked = userNotifyTargets.includes(item);
-            
             const wrapper = document.createElement('label');
             wrapper.className = isUserChecked ? 'target-item notif-enabled' : 'target-item';
             
             const chk = document.createElement('input');
-            chk.type = 'checkbox';
-            chk.value = item;
-            chk.checked = isUserChecked;
-            
-            // チェックボックス変更時の保存処理
+            chk.type = 'checkbox'; chk.value = item; chk.checked = isUserChecked;
             chk.addEventListener('change', function() {
                 if (this.checked) {
                     if (!userNotifyTargets.includes(this.value)) userNotifyTargets.push(this.value);
@@ -173,44 +137,35 @@
 
             wrapper.appendChild(chk);
             wrapper.appendChild(document.createTextNode(" " + item));
-            
-            if (isBotMonitoring) {
-                activeContainer.appendChild(wrapper);
-            } else {
-                inactiveContainer.appendChild(wrapper);
-            }
+            if (isBotMonitoring) activeContainer.appendChild(wrapper);
+            else inactiveContainer.appendChild(wrapper);
         });
     }
 
-    // Gistから設定同期
     async function syncConfig() {
         try {
             const res = await fetch(GIST_BASE + "config.json?t=" + new Date().getTime());
             if (res.ok) {
                 const data = await res.json();
-                if (data.active) {
-                    botActiveTargets = data.active;
-                    renderTargets();
-                }
+                if (data.active) { botActiveTargets = data.active; renderTargets(); }
             }
         } catch (e) {}
     }
 
-    // ログ取得と通知判定
     async function fetchLog() {
         try {
             const response = await fetch(GIST_BASE + "farm_log.txt?t=" + new Date().getTime());
             const currentContent = await response.text();
-            const audioOn = document.getElementById('audio-switch').checked;
             
             if (lastContent !== "" && currentContent !== lastContent) {
                 const latestLine = currentContent.split('\n')[0];
-                
-                // ★判定ポイント: 「最新ログの単語」が「ユーザーがチェックしたリスト」に含まれているか
                 const shouldNotify = userNotifyTargets.some(target => latestLine.includes(target));
                 
-                if (shouldNotify && audioOn) {
-                    playNotifySound();
+                if (shouldNotify) {
+                    // 音声通知
+                    if (document.getElementById('audio-switch').checked) playNotifySound();
+                    // プッシュ通知
+                    if (document.getElementById('push-switch').checked) sendPushNotification(latestLine);
                 }
             }
             document.getElementById('log-container').innerText = currentContent;
@@ -218,33 +173,54 @@
         } catch (e) {}
     }
 
+    // ★プッシュ通知送信
+    function sendPushNotification(msg) {
+        if (!("Notification" in window)) return;
+        if (Notification.permission === "granted") {
+            new Notification("農園ボット通知", {
+                body: msg,
+                icon: "https://cdn-icons-png.flaticon.com/512/888/888879.png"
+            });
+        }
+    }
+
+    // プッシュ通知スイッチの挙動
+    document.getElementById('push-switch').addEventListener('change', function() {
+        const btn = document.getElementById('push-btn');
+        if(this.checked) {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    btn.classList.add('active');
+                    new Notification("通知設定完了", { body: "このデバイスで通知を受け取れます" });
+                } else {
+                    alert("通知が拒否されました。設定から許可してください。");
+                    this.checked = false;
+                }
+            });
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
     function playNotifySound() {
         try {
             const context = new (window.AudioContext || window.webkitAudioContext)();
-            const gain = context.createGain();
-            gain.connect(context.destination);
+            const gain = context.createGain(); gain.connect(context.destination);
             const osc = context.createOscillator();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(1200, context.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1800, context.currentTime + 0.1);
+            osc.type = 'square'; osc.frequency.setValueAtTime(1200, context.currentTime);
             gain.gain.setValueAtTime(0.05, context.currentTime);
-            osc.connect(gain);
-            osc.start();
-            osc.stop(context.currentTime + 0.2);
+            osc.connect(gain); osc.start(); osc.stop(context.currentTime + 0.2);
         } catch(e) {}
     }
 
-    // コントロール
     document.getElementById('audio-switch').addEventListener('change', function() {
-        const btn = document.getElementById('audio-btn');
-        if(this.checked) { btn.classList.add('active'); playNotifySound(); }
-        else { btn.classList.remove('active'); }
+        if(this.checked) { document.getElementById('audio-btn').classList.add('active'); playNotifySound(); }
+        else document.getElementById('audio-btn').classList.remove('active');
     });
 
     document.getElementById('nosleep-switch').addEventListener('change', function() {
-        const btn = document.getElementById('nosleep-btn');
-        if(this.checked) { if(noSleep) noSleep.enable(); btn.classList.add('active'); }
-        else { if(noSleep) noSleep.disable(); btn.classList.remove('active'); }
+        if(this.checked) { if(noSleep) noSleep.enable(); document.getElementById('nosleep-btn').classList.add('active'); }
+        else { if(noSleep) noSleep.disable(); document.getElementById('nosleep-btn').classList.remove('active'); }
     });
 
     function updateTimers() {
@@ -253,7 +229,6 @@
         if (nextRefreshTime) {
             const diff = (nextRefreshTime - now) / 1000;
             const sec = Math.max(0, Math.floor(diff));
-            document.getElementById('next-update-text').innerText = `NEXT UPDATE IN ${sec} SEC`;
             document.getElementById('countdown-progress').style.width = `${(sec / 300) * 100}%`;
             if (diff <= 0) {
                 nextRefreshTime = null;
@@ -270,11 +245,7 @@
         nextRefreshTime = target;
     }
 
-    // 起動
-    renderTargets(); // 初回描画
-    fetchLog();
-    syncConfig();
-    calculateNextTime();
+    renderTargets(); fetchLog(); syncConfig(); calculateNextTime();
     setInterval(updateTimers, 1000);
 </script>
 </body>

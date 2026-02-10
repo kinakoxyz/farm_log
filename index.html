@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FarmLog Live Monitor Pro</title>
+    <title>FarmLog Live Monitor Ultra</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
     <style>
         :root {
@@ -26,15 +26,29 @@
         
         .container { width: 96%; max-width: 800px; padding: 10px 0 40px 0; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; }
-        .panel-header { font-size: 0.75rem; color: #666; margin-bottom: 8px; display: flex; justify-content: space-between; }
-        
+        .panel-header { font-size: 0.75rem; color: #666; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* ログ表示の改善 */
         #log-container { 
-            height: 35vh; overflow-y: auto; white-space: pre-wrap;
-            font-family: var(--font-mono); font-size: 1.2rem; line-height: 1.4; color: #eee;
-            background: #000; border: 1px solid #333; padding: 10px; border-radius: 4px;
+            height: 35vh; overflow-y: auto; 
+            background: #000; border: 1px solid #333; border-radius: 4px;
+            font-family: var(--font-mono);
+        }
+        .log-entry {
+            padding: 8px 12px; border-bottom: 1px solid #222; font-size: 1.1rem; color: #bbb;
+            display: flex; align-items: flex-start;
+        }
+        .log-entry:nth-child(even) { background: #0a0a0a; }
+        /* 最新のログを強調 */
+        .log-entry.latest {
+            background: #0b1a0b; border-left: 4px solid var(--accent-green);
+            color: #fff; font-size: 1.3rem; font-weight: bold; padding: 12px;
+        }
+        .new-badge {
+            background: var(--accent-green); color: #000; font-size: 0.7rem; 
+            padding: 2px 4px; border-radius: 3px; margin-right: 8px; font-weight: 900;
         }
 
-        /* 3つのトグルスイッチ用グリッド */
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .toggle-btn {
             background: #222; border: 1px solid #444; color: #666; padding: 10px 5px;
@@ -43,7 +57,14 @@
         }
         .toggle-btn.active { background: #003300; border-color: var(--accent-green); color: #fff; }
         .toggle-btn input { display: none; }
-        .toggle-btn span.icon { font-size: 1.2rem; }
+
+        /* ターゲットリスト操作 */
+        .list-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+        .action-btn {
+            flex: 1; background: #333; border: 1px solid #444; color: #ccc; 
+            padding: 8px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;
+        }
+        .action-btn:active { background: #444; }
 
         .target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
         .target-item {
@@ -66,24 +87,30 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header"><span>LIVE LOG (AUTO REFRESH)</span></div>
-        <div id="log-container">Loading log...</div>
+        <div class="panel-header"><span>LIVE MONITORING LOG</span></div>
+        <div id="log-container">
+            <div style="padding:20px; color:#666;">Initializing log stream...</div>
+        </div>
     </div>
 
     <div class="controls-grid">
         <label class="toggle-btn" id="audio-btn">
-            <input type="checkbox" id="audio-switch"> <span class="icon">🔊</span><span>AUDIO</span>
+            <input type="checkbox" id="audio-switch"> <span style="font-size:1.2rem">🔊</span><span>AUDIO</span>
         </label>
         <label class="toggle-btn" id="push-btn">
-            <input type="checkbox" id="push-switch"> <span class="icon">💬</span><span>PUSH</span>
+            <input type="checkbox" id="push-switch"> <span style="font-size:1.2rem">💬</span><span>PUSH</span>
         </label>
         <label class="toggle-btn" id="nosleep-btn">
-            <input type="checkbox" id="nosleep-switch"> <span class="icon">👁️</span><span>SLEEP</span>
+            <input type="checkbox" id="nosleep-switch"> <span style="font-size:1.2rem">👁️</span><span>SLEEP</span>
         </label>
     </div>
 
     <div class="panel">
-        <div class="panel-header">SELECT TARGETS TO NOTIFY</div>
+        <div class="panel-header">NOTIFY SETTINGS</div>
+        <div class="list-actions">
+            <button class="action-btn" onclick="bulkSelect(true)">全選択 (ALL ON)</button>
+            <button class="action-btn" onclick="bulkSelect(false)">全解除 (ALL OFF)</button>
+        </div>
         <div id="active-list" class="target-grid"></div>
     </div>
 
@@ -110,6 +137,17 @@
     let nextRefreshTime = null;
     let botActiveTargets = []; 
     let userNotifyTargets = JSON.parse(localStorage.getItem('userNotifyTargets') || '[]'); 
+
+    // 全選択・全解除のロジック
+    function bulkSelect(isOn) {
+        if (isOn) {
+            userNotifyTargets = [...ALL_TARGETS];
+        } else {
+            userNotifyTargets = [];
+        }
+        localStorage.setItem('userNotifyTargets', JSON.stringify(userNotifyTargets));
+        renderTargets();
+    }
 
     function renderTargets() {
         const activeContainer = document.getElementById('active-list');
@@ -142,6 +180,28 @@
         });
     }
 
+    // ログ描画の改善版
+    function updateLogUI(text) {
+        const container = document.getElementById('log-container');
+        container.innerHTML = '';
+        const lines = text.trim().split('\n');
+
+        lines.forEach((line, index) => {
+            if (!line.trim()) return;
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            
+            // 最新の1行目だけ特別な装飾
+            if (index === 0) {
+                div.className += ' latest';
+                div.innerHTML = `<span class="new-badge">NEW</span>${line}`;
+            } else {
+                div.innerText = line;
+            }
+            container.appendChild(div);
+        });
+    }
+
     async function syncConfig() {
         try {
             const res = await fetch(GIST_BASE + "config.json?t=" + new Date().getTime());
@@ -160,46 +220,30 @@
             if (lastContent !== "" && currentContent !== lastContent) {
                 const latestLine = currentContent.split('\n')[0];
                 const shouldNotify = userNotifyTargets.some(target => latestLine.includes(target));
-                
                 if (shouldNotify) {
-                    // 音声通知
                     if (document.getElementById('audio-switch').checked) playNotifySound();
-                    // プッシュ通知
                     if (document.getElementById('push-switch').checked) sendPushNotification(latestLine);
                 }
             }
-            document.getElementById('log-container').innerText = currentContent;
+            updateLogUI(currentContent);
             lastContent = currentContent;
         } catch (e) {}
     }
 
-    // ★プッシュ通知送信
     function sendPushNotification(msg) {
-        if (!("Notification" in window)) return;
-        if (Notification.permission === "granted") {
-            new Notification("農園ボット通知", {
-                body: msg,
-                icon: "https://cdn-icons-png.flaticon.com/512/888/888879.png"
-            });
-        }
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+        new Notification("農園発見通知", { body: msg });
     }
 
-    // プッシュ通知スイッチの挙動
     document.getElementById('push-switch').addEventListener('change', function() {
-        const btn = document.getElementById('push-btn');
         if(this.checked) {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                    btn.classList.add('active');
-                    new Notification("通知設定完了", { body: "このデバイスで通知を受け取れます" });
-                } else {
-                    alert("通知が拒否されました。設定から許可してください。");
-                    this.checked = false;
-                }
+            Notification.requestPermission().then(perm => {
+                if (perm === "granted") {
+                    document.getElementById('push-btn').classList.add('active');
+                    new Notification("通知設定: ON");
+                } else { this.checked = false; }
             });
-        } else {
-            btn.classList.remove('active');
-        }
+        } else document.getElementById('push-btn').classList.remove('active');
     });
 
     function playNotifySound() {

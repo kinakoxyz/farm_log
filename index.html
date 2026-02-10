@@ -128,22 +128,24 @@
     }
 
     // ログ取得処理
-    async function fetchLog() {
+    // 設定同期: config.json を取得（エラーでも止まらないように修正）
+    async function syncConfig() {
         try {
-            const response = await fetch(GIST_BASE + "farm_log.txt?t=" + new Date().getTime());
-            const currentContent = await response.text();
-            const audioOn = document.getElementById('audio-switch').checked;
-            
-            if (lastContent !== "" && currentContent !== lastContent) {
-                const latestLine = currentContent.split('\n')[0];
-                // 自動同期された currentActiveTargets を使って通知判定
-                if (currentActiveTargets.some(t => latestLine.includes(t)) && audioOn) {
-                    playNotifySound();
+            const res = await fetch(GIST_BASE + "config.json?t=" + new Date().getTime());
+            if (res.ok) {
+                const data = await res.json();
+                if (data.active) {
+                    currentActiveTargets = data.active;
                 }
+            } else {
+                console.warn("Config file not found yet. Using empty list.");
             }
-            document.getElementById('log-container').innerText = currentContent;
-            lastContent = currentContent;
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error("Config sync error:", e);
+        } finally {
+            // 取得できてもできなくても描画だけは進める
+            renderTargets();
+        }
     }
 
     function playNotifySound() {
@@ -169,3 +171,4 @@
     fetchLog();
     calculateNextTime();
 </script>
+

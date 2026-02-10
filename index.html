@@ -1,202 +1,82 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FarmLog Live Monitor</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
-    <style>
-        :root {
-            --bg-color: #0d0d0d;
-            --panel-bg: #161616;
-            --text-main: #e0e0e0;
-            --accent-green: #00ff41;
-            --accent-dim: #008f11;
-            --border-color: #333;
-            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
-        }
-        body { 
-            background: var(--bg-color); color: var(--text-main); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh;
-        }
-
-        /* ヘッダー＆タイマー */
-        header { 
-            width: 100%; background: #000; border-bottom: 1px solid var(--border-color); 
-            padding: 15px 0; text-align: center; position: sticky; top: 0; z-index: 100;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-        #clock { font-family: var(--font-mono); font-size: 2.2rem; font-weight: 700; color: #fff; letter-spacing: 2px; }
-        #countdown-bar { 
-            width: 100%; height: 4px; background: #222; margin-top: 10px; position: relative;
-        }
-        #countdown-progress {
-            height: 100%; background: var(--accent-green); width: 0%; transition: width 1s linear;
-        }
-        #next-update-text { font-size: 0.8rem; color: #888; margin-top: 5px; font-family: var(--font-mono); }
-
-        /* メインレイアウト */
-        .container { width: 96%; max-width: 800px; padding: 10px 0 40px 0; display: flex; flex-direction: column; gap: 15px; }
-
-        /* ログウィンドウ */
-        .panel { 
-            background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .panel-header { 
-            font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 1px; 
-            margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .status-indicator {
-            display: inline-block; width: 8px; height: 8px; background: var(--accent-green);
-            border-radius: 50%; box-shadow: 0 0 8px var(--accent-green); margin-right: 6px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
-        #log-container { 
-            height: 40vh; overflow-y: auto; white-space: pre-wrap;
-            font-family: var(--font-mono); font-size: 1.3rem; line-height: 1.5; color: #eee;
-            background: #000; border: 1px solid #333; padding: 10px; border-radius: 4px;
-        }
-
-        /* コントロールパネル */
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .toggle-btn {
-            background: #222; border: 1px solid #444; color: #888; padding: 12px;
-            border-radius: 4px; cursor: pointer; text-align: center; font-weight: bold; font-size: 0.9rem;
-            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .toggle-btn.active { background: #003300; border-color: var(--accent-green); color: #fff; }
-        .toggle-btn input { display: none; }
-
-        /* ターゲットリスト */
-        .target-grid { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; 
-        }
-        .target-item {
-            background: #222; border: 1px solid #333; padding: 8px 10px; border-radius: 4px;
-            font-size: 0.85rem; color: #bbb; display: flex; align-items: center; cursor: pointer; user-select: none;
-        }
-        .target-item:hover { background: #2a2a2a; }
-        .target-item input { margin-right: 8px; accent-color: var(--accent-green); transform: scale(1.2); }
-        .target-item.active-item { border-color: #005500; background: #0b1a0b; color: #fff; }
-
-        /* 折りたたみエリア（待機リスト） */
-        details { border-top: 1px solid #333; margin-top: 10px; }
-        summary { 
-            padding: 15px; color: #555; font-size: 0.8rem; cursor: pointer; list-style: none; text-align: center; 
-            transition: color 0.2s;
-        }
-        summary:hover { color: #888; }
-        summary::after { content: " ▼"; font-size: 0.7em; }
-        details[open] summary::after { content: " ▲"; }
-
-        .inactive-area { background: #111; padding: 15px; border-radius: 4px; }
-    </style>
-</head>
-<body>
-
-<header>
-    <div id="clock">00:00:00</div>
-    <div id="countdown-bar"><div id="countdown-progress"></div></div>
-    <div id="next-update-text">NEXT UPDATE IN -- SEC</div>
-</header>
-
-<div class="container">
-    
-    <div class="panel">
-        <div class="panel-header">
-            <span><span class="status-indicator"></span>LIVE LOG</span>
-            <span style="font-size:0.7rem; opacity:0.7;">GIST: CONNECTED</span>
-        </div>
-        <div id="log-container">Initializing system...</div>
-    </div>
-
-    <div class="controls-grid">
-        <label class="toggle-btn" id="audio-btn">
-            <input type="checkbox" id="audio-switch"> <span>🔊 AUDIO NOTIFY</span>
-        </label>
-        <label class="toggle-btn" id="nosleep-btn">
-            <input type="checkbox" id="nosleep-switch"> <span>👁️ NO SLEEP</span>
-        </label>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">ACTIVE MONITORS (現在有効なターゲット)</div>
-        <div id="active-list" class="target-grid">
-            </div>
-    </div>
-
-    <details>
-        <summary>INACTIVE / STANDBY TARGETS (待機リストを表示)</summary>
-        <div class="inactive-area">
-            <div id="inactive-list" class="target-grid" style="opacity: 0.6;">
-                </div>
-        </div>
-    </details>
-
-</div>
-
 <script>
-    // ▼▼▼ 設定エリア：ここに「現在有効にしたい種」だけを書いてください ▼▼▼
-    const ACTIVE_LIST = [
-        "スプリンクラー", 
-        "天候", 
-        "シュガーアップル", 
-        "スターフルーツ", 
-        "かぼちゃ", 
-        "豆の木", 
-        "パパイヤ"
-    ];
-    // ▲▲▲ 設定エリア終了 ▲▲▲
-
+    // ▼▼▼ 設定エリア（自動化されたので削除しました） ▼▼▼
+    
+    // 全ターゲット定義（表示順序やカテゴリ分け用）
     const ALL_TARGETS = [
         "スプリンクラー", "天候", "いちご", "ブルーベリー", "りんご", "サボテン", "ぶどう", "すいか", 
         "ココナッツ", "マンゴー", "シュガーアップル", "スターフルーツ", "にんじん", "トマト", 
-        "とうもろこし", "キノコ", "かぼちゃ", "豆の木", "トゥースキノコ", "一つ目キノコ", 
-        "魔女キノコ", "コウモリキノコ", "トゥーストゲ花", "トゥーススイセン", "鬼火キノコ", 
-        "悪霊すいか", "ネクタリン", "古代の果実", "絶叫カボチャ", "イチジク", "トゲバンレイシ", "パパイヤ"
+        "とうもろこし", "キノコ", "かぼちゃ", "豆の木", "イチジク", "トゲバンレイシ", "パパイヤ",
+        // 以下、現在未使用でもリストにあれば表示可能
+        "トゥースキノコ", "一つ目キノコ", "魔女キノコ", "コウモリキノコ", "トゥーストゲ花", 
+        "トゥーススイセン", "鬼火キノコ", "悪霊すいか", "ネクタリン", "古代の果実", "絶叫カボチャ"
     ];
 
-    const GIST_URL = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
+    // GistのベースURL (config.json と farm_log.txt を取得するため)
+    // ユーザーIDとGistIDの部分まで
+    const GIST_BASE = "https://gist.githubusercontent.com/kinakoxyz/9b9509f9f4a9139ad6196042de197560/raw/";
+    
     let lastContent = "";
     let nextRefreshTime = null;
+    let currentActiveTargets = []; // 自動同期されたリスト
     const noSleep = new NoSleep();
 
-    // UI初期化：リストの振り分け生成
+    // UI初期化：枠だけ作る
     function initUI() {
         const activeContainer = document.getElementById('active-list');
         const inactiveContainer = document.getElementById('inactive-list');
+        activeContainer.innerHTML = '';
+        inactiveContainer.innerHTML = '';
+        // 読み込み中表示
+        activeContainer.innerHTML = '<div style="color:#666; padding:10px;">SYNCING CONFIG...</div>';
+    }
+
+    // リスト描画更新関数
+    function renderTargets() {
+        const activeContainer = document.getElementById('active-list');
+        const inactiveContainer = document.getElementById('inactive-list');
         
-        // 既存の中身をクリア
         activeContainer.innerHTML = '';
         inactiveContainer.innerHTML = '';
 
         ALL_TARGETS.forEach(item => {
-            const isActive = ACTIVE_LIST.includes(item);
+            const isActive = currentActiveTargets.includes(item);
             const wrapper = document.createElement('label');
             wrapper.className = isActive ? 'target-item active-item' : 'target-item';
             
-            // チェックボックス: activeリストにあるものはchecked、それ以外はunchecked
-            wrapper.innerHTML = `<input type="checkbox" value="${item}" ${isActive ? 'checked' : ''}> ${item}`;
+            // チェックボックス (表示用：操作してもボットには反映されませんが、見た目のために残します)
+            wrapper.innerHTML = `<input type="checkbox" value="${item}" ${isActive ? 'checked' : 'disabled'}> ${item}`;
             
-            // チェックボックス操作時のスタイル変化イベント
-            wrapper.querySelector('input').addEventListener('change', function() {
-                if(this.checked) {
-                    this.parentElement.classList.add('active-item');
-                } else {
-                    this.parentElement.classList.remove('active-item');
-                }
-            });
-
             if (isActive) {
                 activeContainer.appendChild(wrapper);
             } else {
                 inactiveContainer.appendChild(wrapper);
             }
         });
+        
+        // アクティブがない場合
+        if(activeContainer.children.length === 0) {
+            activeContainer.innerHTML = '<div style="color:#444; padding:10px;">NO ACTIVE TARGETS</div>';
+        }
+    }
+
+    // ★設定同期: config.json を取得
+    async function syncConfig() {
+        try {
+            const res = await fetch(GIST_BASE + "config.json?t=" + new Date().getTime());
+            if (res.ok) {
+                const data = await res.json();
+                if (data.active && Array.isArray(data.active)) {
+                    // 配列の中身が変わった時だけ再描画
+                    if (JSON.stringify(data.active.sort()) !== JSON.stringify(currentActiveTargets.sort())) {
+                        console.log("Config updated:", data.active);
+                        currentActiveTargets = data.active;
+                        renderTargets();
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("Config sync failed (File might not verify yet):", e);
+        }
     }
 
     // 各種スイッチの挙動
@@ -218,19 +98,21 @@
         document.getElementById('clock').innerText = now.toLocaleTimeString('ja-JP', {hour12:false});
         
         if (nextRefreshTime) {
-            const totalSec = 300; // 5分インターバルと仮定
+            const totalSec = 300; 
             const diff = (nextRefreshTime - now) / 1000;
             const sec = Math.max(0, Math.floor(diff));
             
             document.getElementById('next-update-text').innerText = `NEXT UPDATE IN ${sec} SEC`;
-            
-            // プログレスバーの更新 (残り時間に応じて短くなる)
             const pct = Math.min(100, (sec / 300) * 100); 
             document.getElementById('countdown-progress').style.width = `${pct}%`;
 
             if (diff <= 0) {
                 nextRefreshTime = null;
-                setTimeout(() => { fetchLog(); calculateNextTime(); }, 1500);
+                setTimeout(() => { 
+                    fetchLog(); 
+                    syncConfig(); // ログと一緒に設定も同期
+                    calculateNextTime(); 
+                }, 1500);
             }
         }
     }
@@ -248,18 +130,14 @@
     // ログ取得処理
     async function fetchLog() {
         try {
-            const response = await fetch(GIST_URL + "?t=" + new Date().getTime());
+            const response = await fetch(GIST_BASE + "farm_log.txt?t=" + new Date().getTime());
             const currentContent = await response.text();
             const audioOn = document.getElementById('audio-switch').checked;
             
             if (lastContent !== "" && currentContent !== lastContent) {
                 const latestLine = currentContent.split('\n')[0];
-                // 画面上で現在チェックが入っているものを取得して判定
-                const monitoringTargets = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
-                                             .map(cb => cb.value)
-                                             .filter(val => val !== "on"); // スイッチの値を除外
-
-                if (monitoringTargets.some(t => latestLine.includes(t)) && audioOn) {
+                // 自動同期された currentActiveTargets を使って通知判定
+                if (currentActiveTargets.some(t => latestLine.includes(t)) && audioOn) {
                     playNotifySound();
                 }
             }
@@ -275,22 +153,19 @@
         const playTone = (freq, start, duration) => {
             const osc = context.createOscillator();
             osc.frequency.setValueAtTime(freq, context.currentTime + start);
-            osc.type = 'square'; // 少しデジタルな音色に変更
+            osc.type = 'square'; 
             osc.connect(gain);
             gain.gain.setValueAtTime(0.05, context.currentTime + start);
             osc.start(context.currentTime + start);
             osc.stop(context.currentTime + start + duration);
         };
-        // ピコーン！という感じの音
         playTone(1200, 0, 0.08); 
         playTone(1800, 0.1, 0.15);
     }
 
     // 実行開始
     initUI();
+    syncConfig(); // 初回設定同期
     fetchLog();
     calculateNextTime();
-
 </script>
-</body>
-</html>

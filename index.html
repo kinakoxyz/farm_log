@@ -70,10 +70,9 @@
         .target-item {
             background: #222; border: 1px solid #333; padding: 8px 10px; border-radius: 4px;
             font-size: 0.85rem; color: #bbb; display: flex; align-items: center; cursor: pointer;
-            min-height: 40px;
         }
         .target-item.notif-enabled { border-color: var(--accent-green); color: #fff; background: #0b1a0b; }
-    .target-item input { margin-right: 8px; accent-color: var(--accent-green); flex-shrink: 0; }
+        .target-item input { margin-right: 8px; accent-color: var(--accent-green); }
 
         details { border-top: 1px solid #333; margin-top: 10px; }
         summary { padding: 15px; color: #555; font-size: 0.8rem; cursor: pointer; text-align: center; list-style: none; }
@@ -301,14 +300,6 @@
 
     renderTargets(); fetchLog(); syncConfig(); calculateNextTime();
     setInterval(updateTimers, 1000);
-<<<<<<< HEAD
-
 </script>
 </body>
 </html>
-=======
-</script>
-</body>
-</html>
-
->>>>>>> e5f681aecf69a815d70fdcbdbcb9a4b7dc8258ec
